@@ -67,14 +67,25 @@ def _update_planet(planet: dict) -> None:
 
     # Ruokapula: väestö vähenee
     food_idx = RESOURCE_NAMES.index("Food")
+    water_idx = RESOURCE_NAMES.index("Water")
     pop_idx = RESOURCE_NAMES.index("Population")
     food_critical = new_arr[food_idx] < CRITICAL_THRESHOLDS["Food"]
+    water_critical = new_arr[water_idx] < CRITICAL_THRESHOLDS["Water"]
+
+    # Ruokapula: väestö vähenee 20 per tick
     if food_critical:
         new_arr[pop_idx] = max(0.0, new_arr[pop_idx] - 20)
         add_event(f"Nälänhätä {planet['name']} — väestö vähenee!", "danger")
 
+    # Vesipula: väestö vähenee 20 per tick (kumulatiivinen ruokapulan kanssa)
+    if water_critical:
+        new_arr[pop_idx] = max(0.0, new_arr[pop_idx] - 20)
+        add_event(f"Vesipula {planet['name']} - väestö vähenee!", "danger")
+
+    # Energiapula: varoitus lokiin
     if not energy_ok:
         add_event(f"Energiapula {planet['name']} — Minerals & Food tuotanto -50%", "warning")
 
+    # Kirjoitetaan uudet arvot takaisin sanakirjaan
     for i, r in enumerate(RESOURCE_NAMES):
         res[r] = round(float(new_arr[i]), 1)
