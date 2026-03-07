@@ -210,6 +210,7 @@ st.markdown(
     f"<h2 style='margin-bottom:2px; color:{planet['color']}'>"
     f"{planet['name']}{hq_mark}</h2>"
     f"<div style='color:{COLOR_TEXT_DIM}; font-size:12px; margin-bottom:20px'>"
+    f"{planet['type'].upper()} &nbsp;·&nbsp; "
     f"GALAKTINEN VUOSI {get_year()} GE &nbsp;·&nbsp; TICK {get_tick()}</div>",
     unsafe_allow_html=True,
 )
@@ -252,45 +253,131 @@ for col, resource in zip(cols, RESOURCE_NAMES):
 
 st.markdown("<div style='margin:16px 0'></div>", unsafe_allow_html=True)
 
-# Resurssihistoriakaavio
-st.markdown(
-    f"<div style='font-size:11px; color:{COLOR_TEXT_DIM}; "
-    f"letter-spacing:2px; margin-bottom:8px'>RESURSSIHISTORIA</div>",
-    unsafe_allow_html=True,
-)
+# Galaktinen kartta
+col_map, col_chart = st.columns([1, 1])
 
-# Käyttäjä valitsee mikä resurssi näytetään kaaviossa
-selected_resource = st.selectbox(
-    "", RESOURCE_NAMES, key="chart_resource", label_visibility="collapsed"
-)
+with col_map:
+    st.markdown(
+        f"<div style='font-size:11px; color:{COLOR_TEXT_DIM}; "
+        f"letter-spacing:2px; margin-bottom:8px'>GALAKTINEN KARTTA</div>",
+        unsafe_allow_html=True,
+    )
 
-df = get_history(selected_resource)
-color = RESOURCE_COLORS[selected_resource]
+    planets = get_all_planets()
+    selected = get_selected_planet()
 
-fig = go.Figure()
-if len(df) >= 2:
-    fig.add_trace(go.Scatter(
-        x = df["tick"],
-        y = df["value"],
-        mode = "lines",
-        line = dict(color=color, width=2),
-        fill = "tozeroy",
-        fillcolor = f"rgba({int(color[1:3],16)},{int(color[3:5],16)},{int(color[5:7],16)},0.08)",
-        name = selected_resource,
+    # Kerätään pisteet kartalle
+    xs      = [p["coords"]["x"] for p in planets.values()]
+    ys      = [p["coords"]["y"] for p in planets.values()]
+    names   = [p["name"] for p in planets.values()]
+    colors  = [p["color"] for p in planets.values()]
+    types   = [p["type"] for p in planets.values()]
+    sizes   = [18 if n == selected else 12 for n in names]
+    borders = [3  if n == selected else 1  for n in names]
+
+    # Hover-teksti per planeetta
+    hover_texts = []
+    for p in planets.values():
+        pop = int(p["resources"]["Population"])
+        en = int(p["resources"]["Energy"])
+        hover_texts.append(
+            f"{p['name']}<br>{p['type']}<br>"
+            f"Pop: {pop:,} · Energy: {en:,}"
+        )
+
+    map_fig = go.Figure()
+
+    # Ruudukkoviivat koordinaatistoon
+    map_fig.add_shape(type="line", x0=-80,x1=80, y0=0, y1=0,
+                      line=dict(color=COLOR_BORDER, width=1, dash="dot"))
+    map_fig.add_shape(type="line", x0=0, x1=0, y0=-80, y1=80,
+                      line=dict(color=COLOR_BORDER, width=1, dash="dot"))
+    
+    # Planeetat pisteinä
+    map_fig.add_trace(go.Scatter(
+        x = xs,
+        y = ys,
+        mode = "markers+text",
+        marker = dict(
+            size = sizes,
+            color = colors,
+            line =dict(color=COLOR_TEXT_BRIGHT, width=borders),
+            symbol = "circle",
+        ),
+        text = names,
+        textfont = dict(family="Rajdhani", size=11, color=COLOR_TEXT),
+        textposition= "top center",
+        hovertext= hover_texts,
+        hoverinfo= "text",
     ))
 
-fig.update_layout(
-    plot_bgcolor = COLOR_BG,
-    paper_bgcolor =COLOR_PANEL,
-    font = dict(family="Rajdhani", color=COLOR_TEXT, size=11),
-    margin = dict(l=10, r=10, t=10, b=10),
-    height = 240,
-    xaxis = dict(title="TICK", gridcolor=COLOR_BORDER, showgrid=True, zeroline=False),
-    yaxis = dict(gridcolor=COLOR_BORDER, showgrid=True, zeroline=False),
-    showlegend = False,
-)
+    map_fig.update_layout(
+        plot_bgcolor = COLOR_BG,
+        paper_bgcolor = COLOR_PANEL,
+        font = dict(family="Rajdhani", color=COLOR_TEXT, size=11),
+        margin = dict(l=10, r=10, t=10, b=10),
+        height= 300,
+        xaxis = dict(
+            title = "AU",
+            gridcolor = COLOR_BORDER,
+            showgrid = True,
+            zeroline = False,
+            range = [-80, 80],
+        ),
+        yaxis = dict(
+            gridcolor = COLOR_BORDER,
+            showgrid = True,
+            zeroline = False,
+            range = [-80, 80],
+            scaleanchor = "x",
+        ),
+        showlegend = False,
+        hovermode = "closest",
+    )
 
-st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(map_fig, use_container_width=True)
+
+# Resurssihistoriakaavio
+with col_chart:
+    st.markdown(
+        f"<div style='font-size:11px; color:{COLOR_TEXT_DIM}; "
+        f"letter-spacing:2px; margin-bottom:8px'>RESURSSIHISTORIA</div>",
+        unsafe_allow_html=True,
+    )
+
+    # Käyttäjä valitsee mikä resurssi näytetään kaaviossa
+    selected_resource = st.selectbox(
+        "", RESOURCE_NAMES, key="chart_resource", label_visibility="collapsed"
+    )
+
+    df = get_history(selected_resource)
+    color = RESOURCE_COLORS[selected_resource]
+
+    fig = go.Figure()
+    if len(df) >= 2:
+        fig.add_trace(go.Scatter(
+            x = df["tick"],
+            y = df["value"],
+            mode = "lines",
+            line = dict(color=color, width=2),
+            fill = "tozeroy",
+            fillcolor = f"rgba({int(color[1:3],16)},{int(color[3:5],16)},{int(color[5:7],16)},0.08)",
+            name = selected_resource,
+        ))
+
+    fig.update_layout(
+        plot_bgcolor = COLOR_BG,
+        paper_bgcolor =COLOR_PANEL,
+        font = dict(family="Rajdhani", color=COLOR_TEXT, size=11),
+        margin = dict(l=10, r=10, t=10, b=10),
+        height = 240,
+        xaxis = dict(title="TICK", gridcolor=COLOR_BORDER, showgrid=True, zeroline=False),
+        yaxis = dict(gridcolor=COLOR_BORDER, showgrid=True, zeroline=False),
+        showlegend = False,
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+    
 st.markdown("<div style='margin:8px 0'></div>", unsafe_allow_html=True)
 
 # Tuotanto & kulutus taulukko
