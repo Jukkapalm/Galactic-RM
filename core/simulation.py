@@ -17,6 +17,7 @@ from core.game_state import (
     get_last_tick_time, advance_tick, add_event,
 )
 from core.ships import update_ships
+from core.events import maybe_trigger_event
 
 # Pääfunktio - kutsutaan app.py:stä joka renderissä
 def maybe_advance_tick() -> bool:
@@ -34,6 +35,7 @@ def _run_tick() -> None:
     for planet in st.session_state.planets.values():
         _update_planet(planet)
     update_ships()
+    maybe_trigger_event()
     advance_tick()
 
 def _update_planet(planet: dict) -> None:
