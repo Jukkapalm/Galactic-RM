@@ -1,11 +1,11 @@
 # Aluslogiikka
-# Rakentaminen, lastaus, matka, purku
+# Rakentaminen, lastaus, matka, purku ja kaupankäynti
 # Jokainen alus on sanakirja session_state.ships listassa
 
 import math
 import streamlit as st
 
-from config import SHIP_TYPES, RESOURCE_NAMES
+from config import SHIP_TYPES, RESOURCE_NAMES, MINERAL_TRADE_RATE
 from core.game_state import add_event
 
 # Apufunktio - laskee etäisyyden kahden planeetan välillä (AU)
@@ -14,7 +14,7 @@ def calc_distance(planet_a: dict, planet_b: dict) -> float:
     dy = planet_a["coords"]["y"] - planet_b["coords"]["y"]
     return math.sqrt(dx * dx + dy * dy)
 
-# Apufunktio - laskee matka-ajan tickeinä
+# Apufunktio - laskee matka-ajan tickeinä etäisyyden ja nopeuden perusteella
 def calc_travel_ticks(planet_a: dict, planet_b: dict, ship_type: str) -> int:
     dist = calc_distance(planet_a, planet_b)
     speed = SHIP_TYPES[ship_type]["speed_au_per_tick"]
@@ -55,6 +55,7 @@ def build_ship(ship_type: str, home_planet: str) -> bool:
     return True
 
 # Aloita lastaus - asettaa aluksen loading-tilaan
+# Lastaa resurssin alukseen - vähentää planeetalta ja aloittaa lastausajastimen
 def start_loading(ship_id: str, resource: str, amount: int) -> bool:
     ship = _get_ship(ship_id)
     planet = st.session_state.planets[ship["location"]]
@@ -78,6 +79,7 @@ def start_loading(ship_id: str, resource: str, amount: int) -> bool:
     return True
 
 # Lähetä alus matkaan - kutsutaan kun lastaus valmis
+# Lähettää aluksen matkaan - laskee matka-ajan koordinaateista
 def dispatch_ship(ship_id: str, destination: str) -> bool:
     ship = _get_ship(ship_id)
 
@@ -119,18 +121,37 @@ def update_ships() -> None:
             ship["ticks_left"] = SHIP_TYPES[ship["type"]]["unload_ticks"]
             add_event(f"{ship['id']} saapui {ship['location']}", "success")
 
-        # Purku valmis
+        # Purku valmis - siirretään kuorma planeetalle
         elif ship["status"] == "unloading" and ship["ticks_left"] == 0:
-            planet = st.session_state.planets[ship["location"]]
-            for resource, amount in ship["cargo"].items():
-                current = planet["resources"].get(resource, 0)
-                maximum = planet["storage"].get(resource, 999999)
-                planet["resources"][resource] = min(current + amount, maximum)
+            _unload_cargo(ship)
+
+def _unload_cargo(ship: dict) -> None:
+    # Purkaa aluksen kuorman kohdeplaneetalle
+    # Jos kohde on Mercantis ja kuorma on Minerals -> konvertoidaan Crediiteiksi
+    planet = st.session_state.planets[ship["location"]]
+
+    for resource, amount in ship["cargo"].items():
+    
+        # Mercantis-kauppa: Minerals -> Credits
+        if ship["location"] == "Mercantis" and resource == "Minerals":
+            credits_earned = amount * MINERAL_TRADE_RATE
+            current = planet["resources"].get("Credits", 0)
+            maximum = planet["storage"].get("Credits", 999999)
+            planet["resources"]["Credits"] = min(current + credits_earned, maximum)
             add_event(
-                f"{ship['id']} purki kuorman {ship['location']}:lle", "success"
+                f"{ship['id']} myi {amount} Minerals → "
+                f"{credits_earned} Credits (kurssi {MINERAL_TRADE_RATE}x)",
+                "success"
             )
-            ship["cargo"] = {}
-            ship["status"] = "idle"
+        else:
+            # Normaali purku - lisätään resurssi varastoon
+            current = planet["resources"].get(resource, 0)
+            maximum = planet["storage"].get(resource, 999999)
+            planet["resources"][resource] = min(current + amount, maximum)
+            add_event(f"{ship['id']} purki {amount} {resource} → {ship['location']}", "success")
+            
+    ship["cargo"] = {}
+    ship["status"] = "idle"
 
 # Sisäinen apufunktio - hakee aluksen id:llä
 def _get_ship(ship_id: str) -> dict:
