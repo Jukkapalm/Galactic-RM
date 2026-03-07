@@ -10,6 +10,7 @@ from streamlit_autorefresh import st_autorefresh
 from config import (
     GAME_VERSION, TICK_INTERVAL_SECONDS,
     RESOURCE_NAMES, RESOURCE_COLORS, CRITICAL_THRESHOLDS,
+    SHIP_TYPES,
     COLOR_BG, COLOR_PANEL, COLOR_SIDEBAR, COLOR_BORDER,
     COLOR_TEXT, COLOR_TEXT_DIM, COLOR_TEXT_BRIGHT,
     COLOR_ALERT, COLOR_SUCCESS, COLOR_WARNING,
@@ -19,7 +20,9 @@ from core.game_state import (
     get_selected_planet, set_selected_planet,
     get_tick, get_year, get_event_log, 
     get_history, time_until_next_tick,
+    get_ships,
 )
+from core.ships import build_ship, start_loading, dispatch_ship
 from core.simulation import maybe_advance_tick
 
 # Sivun perusasetukset - oltava sivun ensimmäinen Streamlit-kutsu
@@ -44,9 +47,7 @@ html, body, [data-testid="stAppViewContainer"] {{
 }}
 
 /* Pääsisältöalue */
-[data-testid="stMain"] {{
-    background-color: {COLOR_BG};
-}}
+[data-testid="stMain"] {{ background-color: {COLOR_BG}; }}
 
 /* Sidebar */
 [data-testid="stSidebar"] {{
@@ -175,9 +176,7 @@ with st.sidebar:
     # Väri kullekkin vakavuusasteelle
     severity_colors = {
         "info": COLOR_TEXT_DIM,
-        "warning": COLOR_WARNING,
         "danger": COLOR_ALERT,
-        "success": COLOR_SUCCESS,
     }
 
     event_log = get_event_log()
@@ -377,7 +376,7 @@ with col_chart:
     )
 
     st.plotly_chart(fig, use_container_width=True)
-    
+
 st.markdown("<div style='margin:8px 0'></div>", unsafe_allow_html=True)
 
 # Tuotanto & kulutus taulukko
@@ -404,3 +403,122 @@ st.dataframe(
     use_container_width=True,
     height = 260,
 )
+
+st.markdown("<div style='margin:16px 0'></div>", unsafe_allow_html=True)
+
+# Alusten hallinta
+st.markdown(
+    f"<div style='font-size:11px; color:{COLOR_TEXT_DIM}; "
+    f"letter-spacing:2px; margin-bottom:12px'>ALUSTEN HALLINTA</div>",
+    unsafe_allow_html=True,
+)
+
+col_build, col_fleet = st.columns([1, 2])
+
+with col_build:
+    # Rakenna uusi alus
+    st.markdown(
+        f"<div style='font-size:11px; color:{COLOR_TEXT_DIM}; "
+        f"letter-spacing:2px; margin-bottom:8px'>RAKENNA ALUS</div>",
+        unsafe_allow_html=True,
+    )
+    selected_planet_name = get_selected_planet()
+    ship_type_choice = st.selectbox(
+        "Alustyyppi", list(SHIP_TYPES.keys()), key="build_shipe_type",
+        label_visibility="collapsed"
+    )
+    sdata = SHIP_TYPES[ship_type_choice]
+    st.markdown(
+        f"<div style='background:{COLOR_PANEL}; border:1px solid {COLOR_BORDER}; "
+        f"padding:10px 14px; font-size:11px; color:{COLOR_TEXT}; margin-bottom:8px'>"
+        f"<span style='color:{sdata['color']}'>{ship_type_choice}</span><br>"
+        f"Kapasiteetti: {sdata['cargo_capacity']} yks.<br>"
+        f"Nopeus: {sdata['speed_au_per_tick']} AU/tick<br>"
+        f"Lastaus: {sdata['load_ticks']} tick · Purku: {sdata['unload_ticks']} tick<br>"
+        f"Hinta: {sdata['cost_credits']} Credits + {sdata['cost_minerals']} Minerals"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+    if st.button("RAKENNA", key="btn_build"):
+        build_ship(ship_type_choice, selected_planet_name)
+        st.rerun()
+
+with col_fleet:
+    # Laivasto - kaikki alukset
+    ships = get_ships()
+    st.markdown(
+        f"<div style='font-size:11px; color:{COLOR_TEXT_DIM}; "
+        f"letter-spacing:2px; margin-bottom:8px'>LAIVASTO ({len(ships)} alusta)</div>",
+        unsafe_allow_html=True,
+    )
+
+    if not ships:
+        st.markdown(
+            f"<span style='color:{COLOR_TEXT_DIM}; font-size:11px'>"
+            f"Ei aluksia. Rakenna ensimmäinen alus.</span>",
+            unsafe_allow_html=True,
+        )
+    else:
+        for ship in ships:
+            stype = SHIP_TYPES[ship["type"]]
+            scol = stype["color"]
+            status = ship["status"].upper()
+            cargo_str = ", ".join(
+                f"{v} {r}" for r, v in ship["cargo"].items()
+            ) if ship["cargo"] else "Tyhjä"
+
+            # Tilaväri
+            status_color = {
+                "IDLE": COLOR_TEXT_DIM,
+                "LOADING": COLOR_WARNING,
+                "TRAVELLING": COLOR_SUCCESS,
+                "UNLOADING": COLOR_WARNING,
+            }.get(status, COLOR_TEXT_DIM)
+
+            st.markdown(
+                f"<div style='background:{COLOR_PANEL}; border:1px solid {COLOR_BORDER}; "
+                f"padding:10px 14px; margin-bottom:6px; font-size:11px'>"
+                f"<span style='color:{scol}; font-size:13px'>{ship['id']}</span> "
+                f"<span style='color:{COLOR_TEXT_DIM}'>— {ship['type']}</span><br>"
+                f"Sijainti: <span style='color:{COLOR_TEXT_BRIGHT}'>{ship['location']}</span> "
+                f"· Tila: <span style='color:{status_color}'>{status}</span>"
+                f"{'· ' + str(ship['ticks_left']) + ' tickiä jäljellä' if ship['ticks_left'] > 0 else ''}<br>"
+                f"Kuorma: {cargo_str}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+            # Kontrollit - lastaus ja lähetys vain idle-aluksille
+            if ship["status"] == "idle":
+                c1, c2, c3 = st.columns([2, 1, 2])
+                with c1:
+                    res_choice = st.selectbox(
+                        "Resurssi", RESOURCE_NAMES,
+                        key=f"res_{ship['id']}", label_visibility="collapsed"
+                    )
+                with c2:
+                    amount = st.number_input(
+                        "Määrä", min_value=1, max_value=stype["cargo_capacity"],
+                        value=100, key=f"amt_{ship['id']}", label_visibility="collapsed"
+                    )
+                with c3:
+                    if st.button("LASTAA", key=f"load_{ship['id']}"):
+                        start_loading(ship["id"], res_choice, amount)
+                        st.rerun()
+
+                # Lähetä-nappi kun lastaus on valmis(idle + cargo)
+                if ship["status"] == "idle" and ship["cargo"]:
+                    planet_names = [
+                        p for p in get_all_planets().keys()
+                        if p != ship["location"]
+                    ]
+                    c1, c2 = st.columns([2, 1])
+                    with c1:
+                        dest_choice = st.selectbox(
+                            "Kohde", planet_names,
+                            key=f"dest_{ship['id']}", label_visibility="collapsed"
+                        )
+                    with c2:
+                        if st.button("LÄHETÄ", key=f"dispatch_{ship['id']}"):
+                            dispatch_ship(ship["id"], dest_choice)
+                            st.rerun()
