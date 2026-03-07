@@ -99,6 +99,9 @@ SHIP_TYPES = {
     },
 }
 
+# Mineraalien myyntikurssi
+MINERAL_TRADE_RATE = 2
+
 # Planeetan alkuarvot
 # Resurssimäärät kun peli alkaa
 STARTING_RESOURCES = {
