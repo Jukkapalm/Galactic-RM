@@ -37,7 +37,8 @@ Reaaliaikainen galaktinen resurssienhallintasimulaatio. Rakennettu Python · Num
 - [x] Reaaliaikainen simulaatio
 - [x] Resurssiriippuvuudet
 - [x] HUD-UI
+- [x] Useampia planeettoja
+- [x] Galaktinen kartta
 - [ ] Resurssisiirrot planeettojen välillä
 - [ ] Alustenhallinta
-- [ ] Useampia planeettoja
 - [ ] Satunnaiset tapahtumat
