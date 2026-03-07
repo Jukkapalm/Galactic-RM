@@ -70,6 +70,9 @@ def init_game() -> None:
     # Valittu planeetta - oletuksena pääkaupunki
     st.session_state.selected_planet = "Terra Nova"
 
+    # Aluslista - jokainen alus on sanakirja
+    st.session_state.ships = []
+
     # Resurssihistoria (Pandas DataFrame)
     # Tallennetaan jokaisen tick resurssiarvot kaaviota varten
     st.session_state.history = pd.DataFrame(columns=[
@@ -130,6 +133,9 @@ def get_selected_planet() -> str:
 
 def set_selected_planet(name: str) -> None:
     st.session_state.selected_planet = name
+
+def get_ships() -> list:
+    return st.session_state.ships
 
 def get_tick() -> int:
     # Palauttaa nykyisen tick-numeron
