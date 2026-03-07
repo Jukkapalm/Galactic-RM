@@ -62,6 +62,43 @@ PLANET_TYPES = {
     },
 }
 
+# Alustyypit
+# speed_au_per_tick = kuinka monta AU alus liikkuu per tick
+# load_ticks = kauanko lastaus kestää
+# unload_ticks = kauanko purku kestää
+# cargo_capacity = maksimikuorma yksikköinä
+# cost_credits = rakennushinta Credits
+# cost_minerals = rakennushinta Minerals
+SHIP_TYPES = {
+    "Scout": {
+        "color": "#88CCFF",
+        "speed_au_per_tick": 15,
+        "load_ticks": 1,
+        "unload_ticks": 1,
+        "cargo_capacity": 100,
+        "cost_credits": 150,
+        "cost_minerals": 50,
+    },
+    "Freighter": {
+        "color": "#AADDAA",
+        "speed_au_per_tick": 8,
+        "load_ticks": 3,
+        "unload_ticks": 3,
+        "cargo_capacity": 500,
+        "cost_credits": 300,
+        "cost_minerals": 150,
+    },
+    "Heavy Hauler": {
+        "color": "#DDAA88",
+        "speed_au_per_tick": 4,
+        "load_ticks": 6,
+        "unload_ticks": 6,
+        "cargo_capacity": 1500,
+        "cost_credits": 600,
+        "cost_minerals": 300,
+    },
+}
+
 # Planeetan alkuarvot
 # Resurssimäärät kun peli alkaa
 STARTING_RESOURCES = {
