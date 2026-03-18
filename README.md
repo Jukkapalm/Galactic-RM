@@ -56,7 +56,7 @@ galactic-rms/
 
 ```bash
 # Kloonaa repo
-git clone https://github.com/Jukkapalm/galactic-rms.git
+git clone https://github.com/Jukkapalm/Galactic-RM.git
 cd galactic-rms
 
 # Asenna riippuvuudet
